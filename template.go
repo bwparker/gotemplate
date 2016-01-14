@@ -132,6 +132,23 @@ func (t *template) findTemplateDefinition(f *ast.File) {
 	debugf("templateName = %v, templateArgs = %v", t.templateName, t.templateArgs)
 }
 
+// "template type Set(A)"
+var matchTemplateIgnore = regexp.MustCompile(`^//\s*template\s+ignore\s+(\w+\s*.*?)\s*$`)
+
+func (t *template) findTemplateOptions(f *ast.File) map[string]bool {
+	options := make(map[string]bool)
+	for _, cg := range f.Comments {
+		for _, x := range cg.List {
+			matches := matchTemplateIgnore.FindStringSubmatch(x.Text)
+			if matches != nil {
+				options[matches[1]] = true
+			}
+		}
+	}
+	logf("Options Set: %#v", options)
+	return options
+}
+
 // Ouput the go formatted file
 //
 // Exits with a fatal error on error
@@ -196,7 +213,7 @@ func (t *template) parse(inputFile string) {
 
 	fset, f := parseFile(inputFile)
 	t.findTemplateDefinition(f)
-
+	options := t.findTemplateOptions(f)
 	// debugf("Decls = %#v", f.Decls)
 	// Find names which need to be adjusted
 	namesToMangle := []string{}
@@ -294,7 +311,9 @@ func (t *template) parse(inputFile string) {
 			found = true
 			t.addMapping(name)
 		} else if _, found := t.mappings[name]; !found {
-			t.addMapping(name)
+			if !options[name] {
+				t.addMapping(name)
+			}
 		}
 
 	}
